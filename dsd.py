@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Streamlit Monthly Sales Dashboard
+Streamlit Monthly Sales Dashboard — Brand Themed
 
 사용 방법
 1) 아래 패키지 설치 후 실행
@@ -21,26 +21,56 @@ import streamlit as st
 # Page Config
 # ---------------------------
 st.set_page_config(
-    page_title="월별 매출 대시보드",
+    page_title="월별 매출 대시보드 (브랜드 테마)",
     layout="wide",
     page_icon="📈",
 )
 
-st.title("📈 월별 매출 대시보드")
-st.caption("CSV 업로드 후 5개 시각화가 자동 생성됩니다. (매출 추세, 전년 비교, 증감률, 누적 매출, 최고·최저)")
+# ---------------------------
+# Brand Colors (Updated)
+# ---------------------------
+BRAND = {
+    "yellow": "#D9DA03",   # Primary accent
+    "beige": "#DDCCBB",   # Secondary accent
+    "gray": "#6E6665",    # Neutral / text
+    "dark": "#231914",    # Dark base
+    "orange": "#EC792C",  # Highlight
+}
+
+def rgba(hex_color: str, a: float) -> str:
+    hex_color = hex_color.lstrip('#')
+    r = int(hex_color[0:2], 16)
+    g = int(hex_color[2:4], 16)
+    b = int(hex_color[4:6], 16)
+    return f"rgba({r},{g},{b},{a})"
+
+# ---------------------------
+# Header (심플한 흰 배경)
+# ---------------------------
+st.markdown(
+    f"""
+    <div style="padding:12px 16px;border-radius:14px;background:#FFFFFF;border:1px solid {rgba(BRAND['dark'],0.08)}">
+      <h1 style="margin:0;font-size:26px;color:{BRAND['dark']}">📈 월별 매출 대시보드 <span style="font-weight:400;color:{rgba(BRAND['gray'],0.8)}">(브랜드 테마)</span></h1>
+      <div style="margin-top:6px;color:{rgba(BRAND['gray'],0.7)}">CSV 업로드 후 5개 시각화가 자동 생성됩니다. (매출 추세, 전년 비교, 증감률, 누적 매출, 최고·최저)</div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
 with st.sidebar:
     st.header("데이터 업로드")
     file = st.file_uploader("CSV 파일을 업로드하세요", type=["csv"])  # expects UTF-8
-    st.markdown("""
-    **필수 컬럼**
-    - `월` (YYYY-MM)
-    - `매출액` (정수)
-    - `전년동월` (정수)
-    - `증감률` (%, 소수 가능)
+    st.markdown(
+        """
+        **필수 컬럼**
+        - `월` (YYYY-MM)
+        - `매출액` (정수)
+        - `전년동월` (정수)
+        - `증감률` (%, 소수 가능)
 
-    ⚙️ 영문 헤더도 허용: `Month`, `Sales`, `LY`, `YoY`
-    """)
+        ⚙️ 영문 헤더도 허용: `Month`, `Sales`, `LY`, `YoY`
+        """
+    )
 
 # ---------------------------
 # Helpers
@@ -114,6 +144,23 @@ def normalize_df(df_in: pd.DataFrame) -> pd.DataFrame:
 
     return out
 
+# ---------------------------
+# Plotly layout helper with brand theme
+# ---------------------------
+
+def apply_brand_layout(fig: go.Figure, title: str, yaxis_title: str | None = None):
+    fig.update_layout(
+        title= dict(text=title, x=0.01, font=dict(color=BRAND['dark'], size=18)),
+        paper_bgcolor="#FFFFFF",
+        plot_bgcolor=rgba(BRAND['yellow'], 0.06),
+        font=dict(color=BRAND['dark']),
+        hovermode="x unified",
+        legend=dict(orientation='h', y=-0.2),
+        xaxis=dict(showgrid=True, gridcolor=rgba(BRAND['gray'], 0.15), zeroline=False),
+        yaxis=dict(title=yaxis_title, showgrid=True, gridcolor=rgba(BRAND['gray'], 0.15), zeroline=True,
+                   zerolinecolor=rgba(BRAND['gray'], 0.4)),
+        margin=dict(t=60, l=50, r=30, b=60),
+    )
 
 # ---------------------------
 # Main
@@ -139,10 +186,14 @@ except Exception as e:
 
 # KPI 영역
 c1, c2, c3, c4 = st.columns(4)
-c1.metric("총매출", f"{총매출:,.0f} 원")
-c2.metric("평균 매출", f"{평균매출:,.0f} 원")
-c3.metric("최고 매출 월", f"{최고월}", help=f"{최고매출:,.0f} 원")
-c4.metric("최저 매출 월", f"{최저월}", help=f"{최저매출:,.0f} 원")
+with c1:
+    st.metric("총매출", f"{총매출:,.0f} 원")
+with c2:
+    st.metric("평균 매출", f"{평균매출:,.0f} 원")
+with c3:
+    st.metric("최고 매출 월", f"{최고월}", help=f"{최고매출:,.0f} 원")
+with c4:
+    st.metric("최저 매출 월", f"{최저월}", help=f"{최저매출:,.0f} 원")
 
 # 공통 x축 라벨
 labels = df["월"].tolist()
@@ -151,51 +202,61 @@ ly = df["전년동월"].tolist() if "전년동월" in df.columns else [None] * l
 yoy = df["증감률"].tolist() if "증감률" in df.columns else [None] * len(df)
 cum = df["누적매출"].tolist()
 
-# 1) 월별 매출 추세 (라인, 전년 포함)
+# 1) 월별 매출 추세
 fig1 = go.Figure()
-fig1.add_trace(go.Scatter(x=labels, y=sales, mode="lines+markers", name="당년 매출"))
+fig1.add_trace(go.Scatter(x=labels, y=sales, mode="lines+markers", name="당년 매출",
+                          line=dict(color=BRAND['orange'], width=3),
+                          marker=dict(color=BRAND['orange'], size=6)))
 if any(pd.notna(ly)):
-    fig1.add_trace(go.Scatter(x=labels, y=ly, mode="lines+markers", name="전년 매출", line=dict(dash="dot")))
-fig1.update_layout(title="월별 매출 추세", yaxis_title="매출액(원)", hovermode="x unified", legend=dict(orientation='h', y=-0.2))
+    fig1.add_trace(go.Scatter(x=labels, y=ly, mode="lines+markers", name="전년 매출",
+                              line=dict(color=BRAND['gray'], width=2, dash="dot"),
+                              marker=dict(color=BRAND['gray'], size=5)))
+apply_brand_layout(fig1, "월별 매출 추세", "매출액(원)")
 st.plotly_chart(fig1, use_container_width=True, theme="streamlit")
 
-# 2) 전년 대비 월별 매출 비교 (그룹 바)
+# 2) 전년 대비 월별 매출 비교
 fig2 = go.Figure()
-fig2.add_trace(go.Bar(x=labels, y=sales, name="당년"))
+fig2.add_trace(go.Bar(x=labels, y=sales, name="당년", marker_color=rgba(BRAND['orange'], 0.95)))
 if any(pd.notna(ly)):
-    fig2.add_trace(go.Bar(x=labels, y=ly, name="전년"))
-fig2.update_layout(barmode="group", title="전년 대비 월별 매출 비교", yaxis_title="매출액(원)", hovermode="x unified",
-                   legend=dict(orientation='h', y=-0.2))
+    fig2.add_trace(go.Bar(x=labels, y=ly, name="전년", marker_color=rgba(BRAND['dark'], 0.9)))
+fig2.update_layout(barmode="group")
+apply_brand_layout(fig2, "전년 대비 월별 매출 비교", "매출액(원)")
 st.plotly_chart(fig2, use_container_width=True, theme="streamlit")
 
-# 3) 전년 대비 증감률 (양/음수 색상)
-bar_colors = ["rgba(46,204,113,0.9)" if (v is not None and v >= 0) else "rgba(231,76,60,0.9)" for v in yoy]
+# 3) 전년 대비 증감률
+bar_colors = [
+    rgba(BRAND['yellow'], 0.9) if (v is not None and v >= 0)
+    else rgba(BRAND['dark'], 0.85)
+    for v in yoy
+]
 fig3 = go.Figure(go.Bar(x=labels, y=yoy, marker_color=bar_colors, name="증감률"))
-fig3.add_hline(y=0, line_color="rgba(200,200,200,0.6)")
-fig3.update_layout(title="전년 대비 증감률", yaxis_title="증감률(%)", hovermode="x unified")
+fig3.add_hline(y=0, line_color=rgba(BRAND['gray'], 0.5))
+apply_brand_layout(fig3, "전년 대비 증감률", "증감률(%)")
 st.plotly_chart(fig3, use_container_width=True, theme="streamlit")
 
-# 4) 누적 매출 (라인 + 영역)
+# 4) 누적 매출
 fig4 = go.Figure()
-fig4.add_trace(go.Scatter(x=labels, y=cum, mode="lines", fill="tozeroy", name="누적 매출"))
-fig4.update_layout(title="누적 매출 추세", yaxis_title="누적 매출액(원)", hovermode="x unified")
+fig4.add_trace(go.Scatter(
+    x=labels, y=cum, mode="lines",
+    line=dict(color=BRAND['dark'], width=2.8),
+    fill="tozeroy", fillcolor=rgba(BRAND['orange'], 0.25), name="누적 매출"
+))
+apply_brand_layout(fig4, "누적 매출 추세", "누적 매출액(원)")
 st.plotly_chart(fig4, use_container_width=True, theme="streamlit")
 
-# 5) 최고·최저 하이라이트 (바)
+# 5) 최고·최저 강조
 max_idx = int(pd.Series(sales).idxmax())
 min_idx = int(pd.Series(sales).idxmin())
 
-
 def pick_color(i):
     if i == max_idx:
-        return "orange"
+        return rgba(BRAND['orange'], 0.98)
     if i == min_idx:
-        return "crimson"
-    return "rgba(255,255,255,0.5)"
-
+        return rgba(BRAND['dark'], 0.95)
+    return rgba(BRAND['beige'], 0.5)
 
 fig5 = go.Figure(go.Bar(x=labels, y=sales, marker_color=[pick_color(i) for i in range(len(sales))]))
-fig5.update_layout(title="월별 매출 (최고·최저 강조)", yaxis_title="매출액(원)", hovermode="x unified")
+apply_brand_layout(fig5, "월별 매출 (최고·최저 강조)", "매출액(원)")
 st.plotly_chart(fig5, use_container_width=True, theme="streamlit")
 
 # 데이터 다운로드
@@ -210,4 +271,4 @@ with st.expander("📥 정규화된 데이터 다운로드"):
         mime="text/csv",
     )
 
-st.caption("© Streamlit + Plotly · Hover로 툴팁 확인, Drag로 확대, Double-click으로 리셋")
+st.caption("© Streamlit + Plotly · Hover로 툴팁 확인, Drag로 확대, Double-click으로 리셋 · Brand colors: #D9DA03 #DDCCBB #6E6665 #231914 #EC792C")
